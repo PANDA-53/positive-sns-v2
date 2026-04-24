@@ -4,7 +4,7 @@ import { createClient } from '../utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-// ログイン処理
+// ログイン処理 (image_982d4f.png のエラーを解消)
 export async function login(formData: FormData) {
   const supabase = await createClient();
   const email = formData.get('email') as string;
@@ -17,23 +17,24 @@ export async function login(formData: FormData) {
   redirect('/');
 }
 
-// 新規登録処理 (追加)
+// 新規登録処理 (新規追加)
 export async function signup(formData: FormData) {
   const supabase = await createClient();
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  const { error } = await supabase.auth.signUp({ 
-    email, 
+  const { error } = await supabase.auth.signUp({
+    email,
     password,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/callback`
-    }
+      // 登録後のリダイレクト先（環境変数 image_a2a9f7.jpg を参照）
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/callback`,
+    },
   });
 
   if (error) return redirect(`/login?error=${encodeURIComponent(error.message)}`);
   
-  // 登録成功時は確認メールが飛ぶ設定の場合が多いですが、そのままログイン状態になるようリダイレクト
+  // 登録成功メッセージを表示するためにリダイレクト
   redirect('/login?message=check-email');
 }
 
@@ -52,7 +53,7 @@ export async function createPost(formData: FormData) {
   revalidatePath('/');
 }
 
-// 返信作成
+// 返信作成 (parent_id を利用)
 export async function createReply(formData: FormData) {
   const supabase = await createClient();
   const content = formData.get('content') as string;
