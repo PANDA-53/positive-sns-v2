@@ -16,7 +16,7 @@ export default async function Index() {
       {/* ヘッダー：横幅を制限しつつ、スマホでは左右に余白 */}
       <nav className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 mb-6">
         <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
-          <h1 className="text-lg md:text-xl font-bold text-green-700 tracking-tight">ポジティブSNS 🌿</h1>
+          <h1 className="text-lg md:text-xl font-bold text-green-700 tracking-tight">POSITIVE SNS</h1>
           {user ? (
             <form action={logout}>
               <button className="text-[10px] md:text-xs bg-red-50 text-red-500 px-4 py-2 rounded-full font-bold hover:bg-red-100 transition-colors">ログアウト</button>

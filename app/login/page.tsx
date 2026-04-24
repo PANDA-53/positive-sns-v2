@@ -68,7 +68,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-center text-3xl font-extrabold text-green-700 mb-8">🌿 ポジティブSNS</h1>
+        <h1 className="text-center text-3xl font-extrabold text-green-700 mb-8">POSITIVE SNS</h1>
         <Suspense fallback={<div className="text-center text-gray-400">読み込み中...</div>}>
           <LoginForm />
         </Suspense>
