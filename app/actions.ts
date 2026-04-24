@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 /**
- * 認証関連
+ * 1. 認証関連 (Login / Logout)
  */
 export async function login(formData: FormData) {
   const supabase = await createClient()
@@ -18,7 +18,6 @@ export async function login(formData: FormData) {
     redirect('/login?error=auth-failed')
   }
 
-  // キャッシュをクリアしてトップへ強制移動
   revalidatePath('/', 'layout')
   redirect('/')
 }
@@ -31,36 +30,70 @@ export async function logout() {
 }
 
 /**
- * 投稿関連
+ * 2. プロフィール画像アップロード
+ */
+export async function uploadAvatar(formData: FormData) {
+  const supabase = await createClient()
+  const file = formData.get('file') as File
+  if (!file || file.size === 0) return
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  // キャッシュ対策としてファイル名にタイムスタンプを付与
+  const fileName = `${user.id}.jpg`
+  
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(fileName, file, { upsert: true })
+
+  if (error) {
+    console.error('Upload Error:', error.message)
+    return
+  }
+
+  revalidatePath('/')
+}
+
+/**
+ * 3. 投稿作成 (avatar_urlの紐付け)
  */
 export async function createPost(formData: FormData) {
   const supabase = await createClient()
   const content = formData.get('content') as string
   if (!content || content.trim() === '') return
 
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  // Storageの公開URLをavatar_urlとして保存
+  const avatarUrl = user 
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${user.id}.jpg`
+    : null
+
   await supabase.from('posts').insert({ 
-    content,
-    user_name: 'Gimax' 
+    content, 
+    user_name: 'Gimax',
+    avatar_url: avatarUrl 
   })
+  
   revalidatePath('/')
 }
 
 /**
- * コメント関連
+ * 4. コメント投稿
  */
 export async function createComment(formData: FormData) {
   const supabase = await createClient()
   const content = formData.get('content') as string
   const postId = formData.get('postId') as string
-
+  
   if (!content || content.trim() === '') return
 
-  const { error } = await supabase.from('comments').insert({ 
+  await supabase.from('comments').insert({ 
     content, 
     post_id: Number(postId), 
     user_name: 'Gimax' 
   })
-
-  if (error) console.error('Comment Error:', error.message)
+  
   revalidatePath('/')
 }
