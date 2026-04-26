@@ -23,27 +23,28 @@ export default async function Index(props: {
   let pendingRequests: any[] = [] 
   
   if (user) {
-    // 1. 投稿データを取得
+    // 1. 全ての投稿と、その投稿主のプロフィールを取得
     const { data: posts } = await supabase
       .from('posts')
       .select(`
         *, 
-        profiles (full_name, avatar_url),
+        profiles!posts_user_id_fkey (id, full_name, avatar_url),
         reactions (type, user_id)
       `)
       .order('created_at', { ascending: false })
 
-    // 2. 友達関係の「生データ」を取得（リレーションを使わない）
+    // 2. 友達関係の「生データ」を取得
     const { data: friendshipsRaw } = await supabase
       .from('friendships')
       .select('*')
       .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
 
-    // 3. 自分宛の「承認待ち」を抽出して、プロフィールを個別に取得して結合する
+    // 3. 自分宛の承認待ち申請を抽出
     const myPendingRaw = friendshipsRaw?.filter(f => 
       String(f.friend_id) === String(user.id) && f.status === 'pending'
     ) || [];
 
+    // 承認待ちユーザーのプロフィールを別途取得して結合
     if (myPendingRaw.length > 0) {
       const senderIds = myPendingRaw.map(f => f.user_id);
       const { data: senderProfiles } = await supabase
@@ -51,7 +52,6 @@ export default async function Index(props: {
         .select('id, full_name, avatar_url')
         .in('id', senderIds);
 
-      // 申請データにプロフィール情報を手動で合成
       pendingRequests = myPendingRaw.map(req => ({
         ...req,
         sender_profile: senderProfiles?.find(p => p.id === req.user_id)
@@ -64,11 +64,11 @@ export default async function Index(props: {
         const hugCount = post.reactions?.filter((r: any) => r.type === 'hug').length || 0;
         const myReaction = post.reactions?.find((r: any) => r.user_id === user.id)?.type || null;
 
+        // 友達状態の判定
         let friendStatus: 'none' | 'pending' | 'accepted' | 'me' = 'none';
         if (post.user_id === user.id) {
           friendStatus = 'me';
         } else {
-          // friendshipsRaw から現在の投稿主との関係を探す
           const relation = friendshipsRaw?.find(f => 
             (String(f.user_id) === String(user.id) && String(f.friend_id) === String(post.user_id)) || 
             (String(f.user_id) === String(post.user_id) && String(f.friend_id) === String(user.id))
@@ -78,7 +78,17 @@ export default async function Index(props: {
           }
         }
 
-        return { ...post, awesomeCount, hugCount, myReaction, friendStatus };
+        // プロフィール情報。リレーション名が profiles!posts_user_id_fkey になる場合があるため調整
+        const authorProfile = post.profiles || (post as any).profiles_posts_user_id_fkey;
+
+        return { 
+          ...post, 
+          authorProfile,
+          awesomeCount, 
+          hugCount, 
+          myReaction, 
+          friendStatus 
+        };
       });
 
       mainPosts = formattedPosts.filter(p => !p.parent_id)
@@ -106,7 +116,7 @@ export default async function Index(props: {
         
         {isToxic && (
           <div className="bg-amber-50 border border-amber-200 text-amber-700 p-5 rounded-[2rem] mb-8 text-sm font-bold text-center shadow-sm animate-pulse">
-            私はあなたの健康を守ります。その発言が本当に貴方の心を健康にしますか？
+            私はあなたの健康を守ります。
             <br />
             <span className="text-[10px] text-amber-600 opacity-70">その発言は不快にする恐れがあります。</span>
           </div>
@@ -120,7 +130,7 @@ export default async function Index(props: {
         ) : (
           <div className="space-y-8">
             
-            {/* --- 承認待ちリスト：手動結合したデータを使用 --- */}
+            {/* 1. 承認待ちリスト */}
             {pendingRequests.length > 0 && (
               <section className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 p-6 rounded-[2.5rem] shadow-lg mb-8">
                 <div className="flex items-center gap-2 mb-5 px-2">
@@ -147,7 +157,6 @@ export default async function Index(props: {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        {/* サーバーアクションを呼び出し。引数は申請者のID(user_id) */}
                         <form action={async () => { 'use server'; await acceptFriendRequest(req.user_id); }}>
                           <button type="submit" className="text-xs bg-blue-600 text-white px-5 py-2.5 rounded-full font-bold">承認</button>
                         </form>
@@ -161,6 +170,7 @@ export default async function Index(props: {
               </section>
             )}
 
+            {/* 2. 投稿フォーム */}
             <section>
               <form action={createPost} className="bg-white p-6 rounded-[2rem] shadow-xl border border-gray-100">
                 <textarea name="content" placeholder="最近あった、いいことは？" className="w-full p-4 bg-gray-50 rounded-2xl outline-none text-black border-none" rows={3} required />
@@ -168,18 +178,19 @@ export default async function Index(props: {
               </form>
             </section>
 
+            {/* 3. タイムライン */}
             <Suspense fallback={<div className="text-center py-10">読み込み中...</div>}>
               <div className="space-y-6">
                 {mainPosts.map((post) => (
                   <div key={post.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-7">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-gray-100">
-                          <img src={post.profiles?.avatar_url || defaultAvatar} className="w-full h-full object-cover" />
+                        <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-gray-100 shrink-0">
+                          <img src={post.authorProfile?.avatar_url || defaultAvatar} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex flex-col text-black">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold">{post.profiles?.full_name || '匿名'}</span>
+                            <span className="text-sm font-bold">{post.authorProfile?.full_name || '匿名'}</span>
                             <FriendButton targetUserId={post.user_id} initialStatus={post.friendStatus} />
                           </div>
                           <span className="text-[10px] text-gray-400">{new Date(post.created_at).toLocaleDateString()}</span>
@@ -196,17 +207,19 @@ export default async function Index(props: {
                       initialMyReaction={post.myReaction}
                     />
 
+                    {/* 返信一覧 */}
                     {replies.some(r => r.parent_id === post.id) && (
                       <div className="ml-8 mt-6 space-y-4 border-l-2 border-gray-100 pl-6 mb-6">
                         {replies.filter(r => r.parent_id === post.id).map(reply => (
                           <div key={reply.id} className="bg-gray-50 p-3 rounded-2xl">
-                            <span className="font-bold text-gray-600 block mb-1 text-xs">{reply.profiles?.full_name || '匿名'}</span>
+                            <span className="font-bold text-gray-600 block mb-1 text-xs">{reply.authorProfile?.full_name || '匿名'}</span>
                             <span className="text-gray-700">{reply.content}</span>
                           </div>
                         ))}
                       </div>
                     )}
 
+                    {/* 返信フォーム */}
                     <form action={createReply} className="flex items-center gap-2 mt-4 bg-gray-50 p-2 rounded-full border border-gray-100">
                       <input type="hidden" name="parentId" value={post.id} />
                       <input name="content" placeholder="返信する..." className="flex-1 bg-transparent px-4 py-2 text-sm outline-none text-black" required />
