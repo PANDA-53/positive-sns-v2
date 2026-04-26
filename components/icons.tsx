@@ -7,8 +7,8 @@ type IconProps = {
 };
 
 /**
- * Awesome Icon (洗練されたグッドボタン)
- * 以前の不自然さを解消し、シンプルで力強い、誰もがわかる「いいね」の形にしました。
+ * Awesome Icon (スタンダード・グッド)
+ * 迷いのない、最もシンプルで力強い親指の形です。
  */
 export const AwesomeIcon = ({ 
   className = "w-6 h-6", 
@@ -19,27 +19,21 @@ export const AwesomeIcon = ({
     xmlns="http://www.w3.org/2000/svg" 
     fill={fill} 
     viewBox="0 0 24 24" 
-    strokeWidth={1.5} 
+    strokeWidth={2} 
     stroke={strokeColor} 
     className={className}
   >
     <path 
       strokeLinecap="round" 
       strokeLinejoin="round" 
-      d="M7.5 15h2.25m-4.5 0h1.372c.86 0 1.61-.586 1.819-1.42l.715-2.861c.113-.45.518-.769.98-.769h6.41c.462 0 .867.319.98.769l.715 2.861c.208.834.959 1.42 1.819 1.42H21.75c1.243 0 2.25 1.007 2.25 2.25v2.25a2.25 2.25 0 01-2.25 2.25H4.5A2.25 2.25 0 012.25 19.5v-2.25c0-1.243 1.007-2.25 2.25-2.25z" 
-    />
-    <path 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      d="M11.25 7.5v-1.5a1.5 1.5 0 011.5-1.5h.75a1.5 1.5 0 011.5 1.5v1.5h-3.75z" 
+      d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" 
     />
   </svg>
 );
 
 /**
- * Hug Icon (ハートを手で抱きしめているデザイン)
- * ご要望を具現化。中央に愛の象徴であるハートを配置し、
- * それを両サイドから優しく包み込む「手」をデザインしました。
+ * Hug Icon (シンプル・ハート)
+ * 余計な装飾を一切排除した、純粋なハートの形です。
  */
 export const HugIcon = ({ 
   className = "w-6 h-6", 
@@ -50,26 +44,14 @@ export const HugIcon = ({
     xmlns="http://www.w3.org/2000/svg" 
     fill={fill} 
     viewBox="0 0 24 24" 
-    strokeWidth={1.5} 
+    strokeWidth={2} 
     stroke={strokeColor} 
     className={className}
   >
-    {/* 中央のハート */}
     <path 
       strokeLinecap="round" 
       strokeLinejoin="round" 
-      d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" 
-    />
-    {/* ハートを抱きしめる両手 */}
-    <path 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      d="M8.25 10.5h1.5a1.5 1.5 0 011.5 1.5v1.5m6.75-3h-1.5a1.5 1.5 0 00-1.5 1.5V12" 
-    />
-    <path 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      d="M10.5 16.5h3m-3-3.75h3" 
+      d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" 
     />
   </svg>
 );
