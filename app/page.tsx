@@ -40,7 +40,7 @@ export default async function Index(props: {
     <main className="min-h-screen bg-[#F2F2F2] text-black pb-12 font-sans">
       <nav className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-200 mb-6">
         <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
-          <h1 className="text-lg font-bold italic">Timeline.</h1>
+          <h1 className="text-lg font-bold italic">G-MAX</h1>
           {user && (
             <div className="flex items-center gap-4 text-black">
               <a href="/profile" className="text-xs text-gray-500 font-bold">設定</a>
