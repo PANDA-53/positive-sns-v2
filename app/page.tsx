@@ -23,7 +23,7 @@ export default async function Index(props: {
   let pendingRequests: any[] = [] 
   
   if (user) {
-    // 1. 投稿とリアクション、プロフィールを取得
+    // 1. 投稿データを取得
     const { data: posts } = await supabase
       .from('posts')
       .select(`
@@ -33,17 +33,22 @@ export default async function Index(props: {
       `)
       .order('created_at', { ascending: false })
 
-    // 2. 自分の友達関係を取得（送信側・受信側両方）
+    // 2. 友達関係を取得（ profiles:user_id としてリレーションを指定 ）
     const { data: friendships } = await supabase
       .from('friendships')
       .select(`
         *,
-        sender:user_id (profiles (full_name, avatar_url))
+        profiles:user_id (
+          full_name,
+          avatar_url
+        )
       `)
       .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
 
-    // 3. 自分宛の承認待ち申請を抽出
-    pendingRequests = friendships?.filter(f => f.friend_id === user.id && f.status === 'pending') || [];
+    // 3. 自分宛の「承認待ち」申請を抽出（StringでIDの型を確実に合わせる）
+    pendingRequests = friendships?.filter(f => 
+      String(f.friend_id) === String(user.id) && f.status === 'pending'
+    ) || [];
 
     if (posts) {
       const formattedPosts = posts.map(post => {
@@ -56,21 +61,15 @@ export default async function Index(props: {
           friendStatus = 'me';
         } else {
           const relation = friendships?.find(f => 
-            (f.user_id === user.id && f.friend_id === post.user_id) || 
-            (f.user_id === post.user_id && f.friend_id === user.id)
+            (String(f.user_id) === String(user.id) && String(f.friend_id) === String(post.user_id)) || 
+            (String(f.user_id) === String(post.user_id) && String(f.friend_id) === String(user.id))
           );
           if (relation) {
             friendStatus = relation.status as any;
           }
         }
 
-        return {
-          ...post,
-          awesomeCount,
-          hugCount,
-          myReaction,
-          friendStatus,
-        };
+        return { ...post, awesomeCount, hugCount, myReaction, friendStatus };
       });
 
       mainPosts = formattedPosts.filter(p => !p.parent_id)
@@ -100,7 +99,7 @@ export default async function Index(props: {
           <div className="bg-amber-50 border border-amber-200 text-amber-700 p-5 rounded-[2rem] mb-8 text-sm font-bold text-center shadow-sm animate-pulse">
             私はあなたの健康を守ります。その発言が本当に貴方の心を健康にしますか？
             <br />
-            <span className="text-[10px] text-amber-600 opacity-70">その発言は受け取る人、見る人を不快にする恐れがあります。</span>
+            <span className="text-[10px] text-amber-600 opacity-70">その発言は不快にする恐れがあります。</span>
           </div>
         )}
 
@@ -112,9 +111,9 @@ export default async function Index(props: {
         ) : (
           <div className="space-y-8">
             
-            {/* --- 承認リスト: 申請が届いている時だけ表示 --- */}
+            {/* --- 承認待ちリスト：ここが修正ポイント --- */}
             {pendingRequests.length > 0 && (
-              <section className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 p-6 rounded-[2.5rem] shadow-lg shadow-blue-900/5">
+              <section className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 p-6 rounded-[2.5rem] shadow-lg mb-8">
                 <div className="flex items-center gap-2 mb-5 px-2">
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
                   <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest">
@@ -123,31 +122,27 @@ export default async function Index(props: {
                 </div>
                 <div className="space-y-3">
                   {pendingRequests.map((req) => (
-                    <div key={req.id} className="flex items-center justify-between bg-white/80 backdrop-blur-sm p-4 rounded-3xl border border-white shadow-sm transition-all hover:shadow-md">
+                    <div key={req.id} className="flex items-center justify-between bg-white p-4 rounded-3xl border border-white shadow-sm">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-100 shadow-inner">
                           <img 
-                            src={req.sender?.profiles?.avatar_url || defaultAvatar} 
+                            src={req.profiles?.avatar_url || defaultAvatar} 
                             className="w-full h-full object-cover" 
                           />
                         </div>
                         <div className="flex flex-col">
                           <span className="text-sm font-bold text-gray-800">
-                            {req.sender?.profiles?.full_name || '匿名'}
+                            {req.profiles?.full_name || 'ユーザー'}
                           </span>
-                          <span className="text-[10px] text-gray-400">あなたと友達になりたがっています</span>
+                          <span className="text-[10px] text-gray-400">友達になりたがっています</span>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <form action={async () => { 'use server'; await acceptFriendRequest(req.user_id); }}>
-                          <button className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-bold transition-colors shadow-sm">
-                            承認
-                          </button>
+                          <button type="submit" className="text-xs bg-blue-600 text-white px-5 py-2.5 rounded-full font-bold">承認</button>
                         </form>
                         <form action={async () => { 'use server'; await deleteFriendship(req.user_id); }}>
-                          <button className="text-xs bg-gray-50 hover:bg-gray-100 text-gray-500 px-5 py-2.5 rounded-full font-bold border border-gray-100 transition-colors">
-                            あとで
-                          </button>
+                          <button type="submit" className="text-xs bg-gray-50 text-gray-500 px-5 py-2.5 rounded-full font-bold border border-gray-100">あとで</button>
                         </form>
                       </div>
                     </div>
@@ -169,7 +164,7 @@ export default async function Index(props: {
                   <div key={post.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-7">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-gray-100 shrink-0">
+                        <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200">
                           <img src={post.profiles?.avatar_url || defaultAvatar} className="w-full h-full object-cover" />
                         </div>
                         <div className="flex flex-col text-black">
@@ -202,7 +197,7 @@ export default async function Index(props: {
                       </div>
                     )}
 
-                    <form action={createReply} className="flex items-center gap-2 mt-4 bg-gray-50 p-2 rounded-full border border-gray-100">
+                    <form action={createReply} className="flex items-center gap-2 mt-4 bg-gray-50 p-2 rounded-full">
                       <input type="hidden" name="parentId" value={post.id} />
                       <input name="content" placeholder="返信する..." className="flex-1 bg-transparent px-4 py-2 text-sm outline-none text-black" required />
                       <button type="submit" className="bg-gray-800 text-white w-8 h-8 rounded-full flex items-center justify-center">
