@@ -22,7 +22,7 @@ export default async function ProfilePage() {
             <input name="avatar" type="file" accept="image/*" className="text-xs text-gray-500 cursor-pointer" />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase">Display Name</label>
+            <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase">ユーザー名</label>
             <input name="fullName" type="text" defaultValue={profile?.full_name || ''} className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-black transition-all" required />
           </div>
           <button type="submit" className="w-full bg-black text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-gray-800 transition-all">保存する</button>
