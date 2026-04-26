@@ -39,7 +39,7 @@ async function checkContentWithCustomRules(content: string) {
             例：
             - 「死にたい」 → SAFE（後悔の表現であり、攻撃的な内容ではないため）
             - 「あいつ死ね」 → TOXIC（他者への攻撃的な表現のため）
-            
+
 
           `
         },
@@ -161,4 +161,35 @@ export async function updateProfile(formData: FormData) {
   
   revalidatePath('/', 'layout');
   redirect('/');
+}
+// app/actions.ts (追加部分)
+
+export async function handleReaction(postId: number, reactionType: 'awesome' | 'hug') {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return; // 未ログインなら何もしない
+
+  // 既にリアクションしているか確認
+  const { data: existingReaction } = await supabase
+    .from('reactions')
+    .select('id')
+    .eq('post_id', postId)
+    .eq('user_id', user.id)
+    .eq('type', reactionType)
+    .single();
+
+  if (existingReaction) {
+    // 既にしていれば、リアクションを取り消す（削除）
+    await supabase.from('reactions').delete().eq('id', existingReaction.id);
+  } else {
+    // していなければ、リアクションを追加（挿入）
+    await supabase.from('reactions').insert({
+      post_id: postId,
+      user_id: user.id,
+      type: reactionType,
+    });
+  }
+
+  // 画面を更新
+  revalidatePath('/');
 }

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'; // キャッシュ対策
 import { createClient } from '../utils/supabase/server'
 import { createPost, createReply, logout } from './actions'
 import { Suspense } from 'react'
+import { ReactionButtons } from '../components/reaction-buttons' // インポート追加
 
 // searchParams の型定義を最新版に合わせる
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -23,14 +24,33 @@ export default async function Index(props: {
   let replies: any[] = []
   
   if (user) {
+    // 投稿と一緒にリアクションデータも取得
     const { data: posts } = await supabase
       .from('posts')
-      .select(`*, profiles (full_name, avatar_url)`)
+      .select(`
+        *, 
+        profiles (full_name, avatar_url),
+        reactions (type, user_id)
+      `)
       .order('created_at', { ascending: false })
 
     if (posts) {
-      mainPosts = posts.filter(p => !p.parent_id)
-      replies = posts.filter(p => p.parent_id)
+      // 取得したデータをフロントエンド用に整形（リアクション数を計算）
+      const formattedPosts = posts.map(post => {
+        const awesomeCount = post.reactions?.filter((r: any) => r.type === 'awesome').length || 0;
+        const hugCount = post.reactions?.filter((r: any) => r.type === 'hug').length || 0;
+        const myReaction = post.reactions?.find((r: any) => r.user_id === user.id)?.type || null;
+
+        return {
+          ...post,
+          awesomeCount,
+          hugCount,
+          myReaction,
+        };
+      });
+
+      mainPosts = formattedPosts.filter(p => !p.parent_id)
+      replies = formattedPosts.filter(p => p.parent_id)
     }
   }
   
@@ -89,11 +109,20 @@ export default async function Index(props: {
                         <span className="text-[10px] text-gray-400">{new Date(post.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
-                    <p className="text-base text-gray-800 mb-6">{post.content}</p>
+                    <p className="text-base text-gray-800 mb-2">{post.content}</p>
+
+                    {/* --- ここにリアクションボタンを追加 --- */}
+                    <ReactionButtons 
+                      postId={post.id}
+                      awesomeCount={post.awesomeCount}
+                      hugCount={post.hugCount}
+                      initialMyReaction={post.myReaction}
+                    />
+                    {/* ------------------------------------ */}
 
                     {/* 返信一覧 */}
                     {replies.some(r => r.parent_id === post.id) && (
-                      <div className="ml-8 space-y-4 border-l-2 border-gray-100 pl-6 mb-6">
+                      <div className="ml-8 mt-6 space-y-4 border-l-2 border-gray-100 pl-6 mb-6">
                         {replies.filter(r => r.parent_id === post.id).map(reply => (
                           <div key={reply.id} className="bg-gray-50 p-3 rounded-2xl">
                             <span className="font-bold text-gray-600 block mb-1 text-xs">{reply.profiles?.full_name || '匿名'}</span>
