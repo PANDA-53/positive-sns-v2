@@ -27,7 +27,6 @@ async function checkContentWithCustomRules(content: string) {
 ・差別、偏見、または尊厳を傷つける内容
 ・コミュニティの和を乱すような過度に攻撃的な言葉
 ・他者を不快にする意図が感じられる自己中心的な主張
-・（ここに追加の禁止ルールを書き込めます）
 
 【SAFE（投稿を許可する基準）】
 ・誰かを笑顔にする、またはポジティブな日常の共有
@@ -36,7 +35,6 @@ async function checkContentWithCustomRules(content: string) {
 ・自責や後悔を含むネガティブな表現は、他者を攻撃するものでなければ許可されるべき
 例：自分はなんてダメな人間なんだろう...（これは自己表現であり、他者を攻撃していないためSAFEと判断されるべき）
 例：消えたい。死にたい。（これも自己表現であり、他者を攻撃していないためSAFEと判断されるべき）
-・（ここに追加の許可ルールを書き込めます）
 
 出力は "SAFE" または "TOXIC" のいずれか1単語のみとしてください。`
         },
@@ -87,12 +85,12 @@ export async function logout() {
 export async function createPost(formData: FormData) {
   const supabase = await createClient();
   const content = formData.get('content') as string;
-  const imageFile = formData.get('image') as File; // 画像ファイルを取得
+  const imageFile = formData.get('image') as File;
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return redirect('/login');
 
-  // 1. AI判定
+  // 1. AI判定（メイン投稿用）
   const isToxic = await checkContentWithCustomRules(content);
   if (isToxic) return redirect('/?error=toxic-content');
 
@@ -121,7 +119,7 @@ export async function createPost(formData: FormData) {
   const { error: dbError } = await supabase.from('posts').insert({ 
     content, 
     user_id: user.id,
-    image_url: imageUrl // カラムを追加済みである前提
+    image_url: imageUrl
   });
 
   if (dbError) {
@@ -137,11 +135,23 @@ export async function createReply(formData: FormData) {
   const supabase = await createClient();
   const content = formData.get('content') as string;
   const parentId = formData.get('parentId') as string;
+  
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
+
+  // 1. AI判定（返信用：専用のエラーコードとparentIdを付与）
   const isToxic = await checkContentWithCustomRules(content);
-  if (isToxic) return redirect('/?error=toxic-content');
-  await supabase.from('posts').insert({ content, parent_id: parentId, user_id: user.id });
+  if (isToxic) {
+    return redirect(`/?error=toxic-content-reply&parentId=${parentId}`);
+  }
+
+  // 2. DBに保存
+  await supabase.from('posts').insert({ 
+    content, 
+    parent_id: parentId, 
+    user_id: user.id 
+  });
+
   revalidatePath('/');
   redirect('/'); 
 }
@@ -236,7 +246,6 @@ export async function deleteFriendship(targetUserId: string) {
   await supabase.from('friendships').delete().or(`and(user_id.eq.${user.id},friend_id.eq.${targetUserId}),and(user_id.eq.${targetUserId},friend_id.eq.${user.id})`);
   revalidatePath('/');
 }
-// app/actions.ts
 
 export async function deletePost(formData: FormData) {
   const postId = formData.get('postId') as string;

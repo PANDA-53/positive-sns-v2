@@ -1,11 +1,12 @@
 export const dynamic = 'force-dynamic';
 
 import { createClient } from '../utils/supabase/server'
-import { createPost, createReply, logout, acceptFriendRequest, deletePost } from './actions'
+import { logout, acceptFriendRequest, deletePost } from './actions'
 import { Suspense } from 'react'
 import { ReactionButtons } from '../components/reaction-buttons'
 import { FriendButton } from '../components/friend-button'
 import PostForm from '../components/post-form'
+import ReplyForm from '../components/ReplyForm' // 新しく作成したコンポーネント
 import Link from 'next/link'
 import PullToRefresh from '../components/pull-to-refresh'
 
@@ -18,8 +19,8 @@ export default async function Index(props: {
   const { data: userData } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
   const user = userData?.user
 
+  // メイン投稿のエラー判定用（PostFormに渡される情報）
   const searchParams = await props.searchParams;
-  const isToxic = searchParams.error === 'toxic-content';
 
   let mainPosts: any[] = []
   let replies: any[] = []
@@ -101,7 +102,7 @@ export default async function Index(props: {
       <main className="min-h-screen bg-[#F2F2F2] text-black pb-12 font-sans overflow-x-hidden">
         <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200">
           <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
-            <h1 className="text-lg font-bold italic">Timeline</h1>
+            <h1 className="text-lg font-bold tracking-tight">POSITIVES</h1>
             <div className="flex items-center gap-3">
               {user ? (
                 <>
@@ -131,7 +132,7 @@ export default async function Index(props: {
         <div className="max-w-2xl mx-auto px-4 pt-6">
           {user ? (
             <div className="space-y-8">
-              {/* 友達一覧 */}
+              {/* 友達一覧セクション */}
               <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-2">Friends</h3>
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
@@ -171,14 +172,9 @@ export default async function Index(props: {
                 </section>
               )}
 
+              {/* メイン投稿フォーム */}
               <section>
-                {isToxic && (
-                  <div className="bg-amber-50 border border-amber-200 text-amber-700 p-5 rounded-[2.5rem] mb-4 text-sm font-bold text-center shadow-sm animate-pulse">
-                    その発言は相手と貴方を本当に笑顔にしますか？
-                    <br />
-                    <span className="text-[10px] text-amber-600 opacity-70">傷つける発言を検知しました。</span>
-                  </div>
-                )}
+                {/* 警告文エリアは削除（PostForm内のトースト通知に移行したため） */}
                 <PostForm />
               </section>
 
@@ -186,6 +182,7 @@ export default async function Index(props: {
                 <div className="space-y-6">
                   {mainPosts.map((post) => (
                     <div key={post.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-7">
+                      {/* 投稿ヘッダー */}
                       <div className="flex items-center justify-between mb-4">
                         <Link href={`/users/${post.user_id}`} className="flex items-center gap-3 hover:opacity-70 transition-opacity">
                           <img src={post.authorProfile?.avatar_url || defaultAvatar} className="w-10 h-10 rounded-full object-cover" alt="" />
@@ -197,7 +194,6 @@ export default async function Index(props: {
                         
                         <div className="flex items-center gap-2">
                           {post.user_id === user.id ? (
-                            /* 【修正箇所】onSubmitを削除してServer Componentエラーを回避 */
                             <form action={deletePost}>
                               <input type="hidden" name="postId" value={post.id} />
                               <button type="submit" className="text-gray-300 hover:text-red-500 transition-colors p-2">
@@ -222,6 +218,7 @@ export default async function Index(props: {
 
                       <ReactionButtons postId={post.id} awesomeCount={post.awesomeCount} hugCount={post.hugCount} initialMyReaction={post.myReaction} />
 
+                      {/* 返信一覧 */}
                       {replies.some(r => r.parent_id === post.id) && (
                         <div className="ml-8 mt-6 space-y-4 border-l-2 border-gray-100 pl-6 mb-6">
                           {replies.filter(r => r.parent_id === post.id).map(reply => (
@@ -235,24 +232,20 @@ export default async function Index(props: {
                         </div>
                       )}
 
-                      <form action={createReply} className="flex items-center gap-2 mt-4 bg-gray-50 p-2 rounded-full border border-gray-100">
-                        <input type="hidden" name="parentId" value={post.id} />
-                        <input name="content" placeholder="返信する..." className="flex-1 bg-transparent px-4 py-2 text-sm outline-none text-black" required />
-                        <button type="submit" className="bg-gray-800 text-white w-8 h-8 rounded-full flex items-center justify-center hover:scale-105 transition-transform">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925L10.79 10l-7.097 1.836-1.414 4.925a.75.75 0 00.826.95 44.82 44.82 0 0014.174-7.443.75.75 0 000-1.216 44.82 44.82 0 00-14.174-7.443z" /></svg>
-                        </button>
-                      </form>
+                      {/* 新しい返信フォームコンポーネント（parentIdを渡す） */}
+                      <ReplyForm parentId={post.id} />
                     </div>
                   ))}
                 </div>
               </Suspense>
             </div>
           ) : (
+            /* 未ログイン時の表示 */
             <div className="py-10 flex flex-col items-center justify-center">
               <div className="w-full bg-white rounded-[2.5rem] shadow-xl border border-gray-100 p-12 flex flex-col items-center justify-center text-center">
                 <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-300 shadow-inner">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 00(2.25 2.25z" />
                   </svg>
                 </div>
                 <h2 className="text-xl font-bold mb-2">ここは貴方の健康を守ります。</h2>
