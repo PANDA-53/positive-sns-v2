@@ -25,7 +25,7 @@ export default async function Index(props: {
   let replies: any[] = []
   let pendingRequests: any[] = [] 
   let acceptedFriends: any[] = [] 
-  let currentUserProfile: any = null // 自分のプロフィールを格納する変数
+  let currentUserProfile: any = null 
   
   const defaultAvatar = "https://www.gravatar.com/avatar/?d=mp"
 
@@ -43,7 +43,7 @@ export default async function Index(props: {
 
       const postUserIds = posts?.map(p => p.user_id) || [];
       const allFriendUserIds = friendshipsRaw?.map(f => f.user_id === user.id ? f.friend_id : f.user_id) || [];
-      // 自分のIDもプロフィール取得対象に含める
+      // 自分自身のプロフィールも取得対象に含める
       const allRelevantUserIds = Array.from(new Set([...postUserIds, ...allFriendUserIds, user.id]));
       
       const { data: allProfiles } = await supabase
@@ -51,7 +51,7 @@ export default async function Index(props: {
         .select('id, full_name, avatar_url')
         .in('id', allRelevantUserIds);
 
-      // 自分のプロフィールを特定
+      // 自分のプロフィールを抽出
       currentUserProfile = allProfiles?.find(p => p.id === user.id);
 
       const myPendingRaw = friendshipsRaw?.filter(f => 
@@ -101,25 +101,27 @@ export default async function Index(props: {
   return (
     <PullToRefresh>
       <main className="min-h-screen bg-[#F2F2F2] text-black pb-12 font-sans overflow-x-hidden">
-        {/* ナビゲーション：自分のプロフィール画像と名前を表示 */}
+        {/* ナビゲーション：アイコンと名前を表示 */}
         <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200">
           <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
             <h1 className="text-lg font-bold italic">Timeline</h1>
             <div className="flex items-center gap-3">
               {user ? (
                 <>
-                  <Link href="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                  <Link href="/profile" className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-gray-100 transition-colors">
                     <img 
                       src={currentUserProfile?.avatar_url || defaultAvatar} 
-                      className="w-8 h-8 rounded-full object-cover border border-gray-100 shadow-sm" 
-                      alt="" 
+                      className="w-8 h-8 rounded-full object-cover border border-gray-200 shadow-sm" 
+                      alt="My Avatar" 
                     />
-                    <span className="text-xs font-bold text-gray-700 hidden sm:inline">
+                    <span className="text-xs font-bold text-gray-700 max-w-[100px] truncate hidden sm:block">
                       {currentUserProfile?.full_name || 'ユーザー'}
                     </span>
                   </Link>
                   <form action={logout}>
-                    <button className="text-[10px] bg-white border border-gray-200 text-gray-500 px-3 py-1.5 rounded-full font-bold">ログアウト</button>
+                    <button className="text-[10px] bg-white border border-gray-200 text-gray-500 px-3 py-1.5 rounded-full font-bold hover:bg-gray-50">
+                      ログアウト
+                    </button>
                   </form>
                 </>
               ) : (
@@ -198,10 +200,11 @@ export default async function Index(props: {
                           </div>
                         </Link>
                         
+                        {/* 右上：自分の投稿なら削除ボタン、他人なら友達ボタン */}
                         <div className="flex items-center gap-2">
                           {post.user_id === user.id ? (
                             <form action={deletePost} onSubmit={(e) => {
-                              if(!confirm("投稿を削除してもよろしいですか？")) e.preventDefault();
+                              if(!confirm("この投稿を削除しますか？")) e.preventDefault();
                             }}>
                               <input type="hidden" name="postId" value={post.id} />
                               <button type="submit" className="text-gray-300 hover:text-red-500 transition-colors p-2">
