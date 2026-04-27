@@ -1,17 +1,8 @@
 // @ts-nocheck
-import withPWAInit from "@ducanh2912/next-pwa";
+import type { NextConfig } from "next";
 
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-});
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  // Webpackを強制する最小限の設定
-  webpack: (config) => {
-    return config;
-  },
+const nextConfig: NextConfig = {
+  /* ここにPWAの設定を書かない（一旦削除） */
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;
