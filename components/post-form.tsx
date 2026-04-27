@@ -18,53 +18,56 @@ export default function PostForm() {
   const isToxic = searchParams.get('error') === 'toxic-content'
 
   useEffect(() => {
-  if (isToxic) {
-    if (!toastIdRef.current) {
-      toastIdRef.current = toast.custom((t) => (
-        // 外側のコンテナをタイトに絞る
-        <div className="bg-white/90 backdrop-blur-md border border-gray-100 shadow-xl rounded-full p-2 pr-6 flex items-center gap-3 w-fit min-w-[300px] max-w-[400px]">
-          
-          {/* アイコン：サイズを微調整し、余白をなくす */}
-          <div className="relative w-14 h-14 flex-shrink-0">
-            <Image 
-              src="/care-robot.png" 
-              alt="Care Robot"
-              fill
-              className="object-contain scale-150" // 少しだけ拡大して余白を埋める
-            />
-          </div>
-          
-          {/* テキスト：行間を極限まで詰める */}
-          <div className="flex flex-col justify-center min-w-0">
-            <p className="text-[13px] font-bold text-gray-800 leading-[1.2] mb-0.5 whitespace-nowrap">
-              その投稿で、貴方は笑顔になりますか？
-            </p>
-            <p className="text-[11px] text-gray-500 leading-tight">
-              誰かが傷つく内容は、お伝えできません。
-            </p>
-          </div>
+    if (isToxic) {
+      if (!toastIdRef.current) {
+toastIdRef.current = toast.custom((t) => (
+  // 1. 全体のサイズ感：py-4, px-8 に広げて一回り大きく
+  <div className="bg-white/95 backdrop-blur-md border border-gray-100 shadow-2xl rounded-full py-4 px-8 flex items-center gap-4 w-auto max-w-[95vw]">
+    
+    {/* 2. 画像サイズ：48px から 56px へアップ（配置バランス維持のため） */}
+    <div className="flex-shrink-0">
+      <Image 
+        src="/care-robot.png" 
+        alt="Care Robot"
+        width={56} 
+        height={56}
+        className="object-contain"
+        priority
+      />
+    </div>
+    
+    {/* 3. テキストサイズ：14px→16px / 11px→13px へ引き上げ */}
+    {/* 4. 被り防止の pr-10：全体が大きくなる分、右の余白も広めに確保 */}
+    <div className="flex flex-col justify-center min-w-0 pr-10">
+      <p className="text-[16px] font-bold text-gray-800 leading-tight mb-1 whitespace-nowrap">
+        それを投稿したら貴方は笑顔になりますか？
+      </p>
+      <p className="text-[13px] text-gray-500 leading-tight whitespace-nowrap">
+        誰かが傷つく内容は、お伝えできません。
+      </p>
+    </div>
 
-          {/* 閉じるボタンをより控えめに */}
-          <button 
-            onClick={() => toast.dismiss(t)}
-            className="ml-auto text-gray-300 hover:text-gray-400 p-1"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      ), {
-        duration: Infinity,
-      })
+    {/* 5. 閉じるボタン：少し大きくし、押しやすく調整 */}
+    <button 
+      onClick={() => toast.dismiss(t)}
+      className="ml-auto text-gray-400 hover:text-gray-600 p-2 flex-shrink-0 transition-colors"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+), {
+  duration: Infinity,
+})
+      }
+    } else {
+      if (toastIdRef.current) {
+        toast.dismiss(toastIdRef.current)
+        toastIdRef.current = null
+      }
     }
-  } else {
-    if (toastIdRef.current) {
-      toast.dismiss(toastIdRef.current)
-      toastIdRef.current = null
-    }
-  }
-}, [isToxic])
+  }, [isToxic])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
