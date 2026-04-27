@@ -43,7 +43,6 @@ export default async function Index(props: {
 
       const postUserIds = posts?.map(p => p.user_id) || [];
       const allFriendUserIds = friendshipsRaw?.map(f => f.user_id === user.id ? f.friend_id : f.user_id) || [];
-      // 自分自身のプロフィールも取得対象に含める
       const allRelevantUserIds = Array.from(new Set([...postUserIds, ...allFriendUserIds, user.id]));
       
       const { data: allProfiles } = await supabase
@@ -51,7 +50,6 @@ export default async function Index(props: {
         .select('id, full_name, avatar_url')
         .in('id', allRelevantUserIds);
 
-      // 自分のプロフィールを抽出
       currentUserProfile = allProfiles?.find(p => p.id === user.id);
 
       const myPendingRaw = friendshipsRaw?.filter(f => 
@@ -101,7 +99,6 @@ export default async function Index(props: {
   return (
     <PullToRefresh>
       <main className="min-h-screen bg-[#F2F2F2] text-black pb-12 font-sans overflow-x-hidden">
-        {/* ナビゲーション：アイコンと名前を表示 */}
         <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200">
           <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
             <h1 className="text-lg font-bold italic">Timeline</h1>
@@ -174,7 +171,6 @@ export default async function Index(props: {
                 </section>
               )}
 
-              {/* 投稿フォームエリア */}
               <section>
                 {isToxic && (
                   <div className="bg-amber-50 border border-amber-200 text-amber-700 p-5 rounded-[2.5rem] mb-4 text-sm font-bold text-center shadow-sm animate-pulse">
@@ -186,7 +182,6 @@ export default async function Index(props: {
                 <PostForm />
               </section>
 
-              {/* タイムライン */}
               <Suspense fallback={<div className="text-center py-10 text-gray-400 text-xs">読み込み中...</div>}>
                 <div className="space-y-6">
                   {mainPosts.map((post) => (
@@ -200,12 +195,10 @@ export default async function Index(props: {
                           </div>
                         </Link>
                         
-                        {/* 右上：自分の投稿なら削除ボタン、他人なら友達ボタン */}
                         <div className="flex items-center gap-2">
                           {post.user_id === user.id ? (
-                            <form action={deletePost} onSubmit={(e) => {
-                              if(!confirm("この投稿を削除しますか？")) e.preventDefault();
-                            }}>
+                            /* 【修正箇所】onSubmitを削除してServer Componentエラーを回避 */
+                            <form action={deletePost}>
                               <input type="hidden" name="postId" value={post.id} />
                               <button type="submit" className="text-gray-300 hover:text-red-500 transition-colors p-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -229,7 +222,6 @@ export default async function Index(props: {
 
                       <ReactionButtons postId={post.id} awesomeCount={post.awesomeCount} hugCount={post.hugCount} initialMyReaction={post.myReaction} />
 
-                      {/* 返信一覧 */}
                       {replies.some(r => r.parent_id === post.id) && (
                         <div className="ml-8 mt-6 space-y-4 border-l-2 border-gray-100 pl-6 mb-6">
                           {replies.filter(r => r.parent_id === post.id).map(reply => (
@@ -243,7 +235,6 @@ export default async function Index(props: {
                         </div>
                       )}
 
-                      {/* 返信フォーム */}
                       <form action={createReply} className="flex items-center gap-2 mt-4 bg-gray-50 p-2 rounded-full border border-gray-100">
                         <input type="hidden" name="parentId" value={post.id} />
                         <input name="content" placeholder="返信する..." className="flex-1 bg-transparent px-4 py-2 text-sm outline-none text-black" required />
@@ -257,7 +248,6 @@ export default async function Index(props: {
               </Suspense>
             </div>
           ) : (
-            /* 未ログイン時 */
             <div className="py-10 flex flex-col items-center justify-center">
               <div className="w-full bg-white rounded-[2.5rem] shadow-xl border border-gray-100 p-12 flex flex-col items-center justify-center text-center">
                 <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-300 shadow-inner">
