@@ -6,7 +6,7 @@ import { Suspense } from 'react'
 import { ReactionButtons } from '../components/reaction-buttons'
 import { FriendButton } from '../components/friend-button'
 import PostForm from '../components/post-form'
-import ReplyForm from '../components/ReplyForm' // 新しく作成したコンポーネント
+import ReplyForm from '../components/ReplyForm'
 import Link from 'next/link'
 import PullToRefresh from '../components/pull-to-refresh'
 
@@ -19,7 +19,6 @@ export default async function Index(props: {
   const { data: userData } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
   const user = userData?.user
 
-  // メイン投稿のエラー判定用（PostFormに渡される情報）
   const searchParams = await props.searchParams;
 
   let mainPosts: any[] = []
@@ -98,41 +97,43 @@ export default async function Index(props: {
   }
 
   return (
-    <PullToRefresh>
-      <main className="min-h-screen bg-[#F2F2F2] text-black pb-12 font-sans overflow-x-hidden">
-        <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200">
-          <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
-            <h1 className="text-lg font-bold tracking-tight">POSITIVES</h1>
-            <div className="flex items-center gap-3">
-              {user ? (
-                <>
-                  <Link href="/profile" className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-gray-100 transition-colors">
-                    <img 
-                      src={currentUserProfile?.avatar_url || defaultAvatar} 
-                      className="w-8 h-8 rounded-full object-cover border border-gray-200 shadow-sm" 
-                      alt="My Avatar" 
-                    />
-                    <span className="text-xs font-bold text-gray-700 max-w-[100px] truncate hidden sm:block">
-                      {currentUserProfile?.full_name || 'ユーザー'}
-                    </span>
-                  </Link>
-                  <form action={logout}>
-                    <button className="text-[10px] bg-white border border-gray-200 text-gray-500 px-3 py-1.5 rounded-full font-bold hover:bg-gray-50">
-                      ログアウト
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <Link href="/login" className="text-xs bg-black text-white px-5 py-2 rounded-full font-bold">ログイン</Link>
-              )}
-            </div>
+    <main className="min-h-screen bg-[#F2F2F2] text-black pb-12 font-sans">
+      {/* 修正1: nav を PullToRefresh の外に出す（固定ヘッダーとして独立させる） */}
+      <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200">
+        <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
+          <h1 className="text-lg font-bold tracking-tight text-green-700">POSITIVES</h1>
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                <Link href="/profile" className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-gray-100 transition-colors">
+                  <img 
+                    src={currentUserProfile?.avatar_url || defaultAvatar} 
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200 shadow-sm" 
+                    alt="My Avatar" 
+                  />
+                  <span className="text-xs font-bold text-gray-700 max-w-[100px] truncate hidden sm:block">
+                    {currentUserProfile?.full_name || 'ユーザー'}
+                  </span>
+                </Link>
+                <form action={logout}>
+                  <button className="text-[10px] bg-white border border-gray-200 text-gray-500 px-3 py-1.5 rounded-full font-bold hover:bg-gray-50">
+                    ログアウト
+                  </button>
+                </form>
+              </>
+            ) : (
+              <Link href="/login" className="text-xs bg-black text-white px-5 py-2 rounded-full font-bold">ログイン</Link>
+            )}
           </div>
-        </nav>
+        </div>
+      </nav>
 
+      {/* 修正2: メインコンテンツのみを PullToRefresh で囲む */}
+      <PullToRefresh>
         <div className="max-w-2xl mx-auto px-4 pt-6">
           {user ? (
             <div className="space-y-8">
-              {/* 友達一覧セクション */}
+              {/* 友達一覧 */}
               <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-2">Friends</h3>
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
@@ -151,7 +152,7 @@ export default async function Index(props: {
                 </div>
               </section>
 
-              {/* 承認待ち申請 */}
+              {/* 申請リスト */}
               {pendingRequests.length > 0 && (
                 <section className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 p-6 rounded-[2.5rem] shadow-lg">
                   <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 px-2">申請が届いています</h3>
@@ -172,17 +173,16 @@ export default async function Index(props: {
                 </section>
               )}
 
-              {/* メイン投稿フォーム */}
+              {/* 投稿フォーム */}
               <section>
-                {/* 警告文エリアは削除（PostForm内のトースト通知に移行したため） */}
                 <PostForm />
               </section>
 
+              {/* 投稿リスト */}
               <Suspense fallback={<div className="text-center py-10 text-gray-400 text-xs">読み込み中...</div>}>
-                <div className="space-y-6">
+                <div className="space-y-6 pb-20">
                   {mainPosts.map((post) => (
                     <div key={post.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-7">
-                      {/* 投稿ヘッダー */}
                       <div className="flex items-center justify-between mb-4">
                         <Link href={`/users/${post.user_id}`} className="flex items-center gap-3 hover:opacity-70 transition-opacity">
                           <img src={post.authorProfile?.avatar_url || defaultAvatar} className="w-10 h-10 rounded-full object-cover" alt="" />
@@ -191,7 +191,6 @@ export default async function Index(props: {
                             <span className="text-[10px] text-gray-400">{new Date(post.created_at).toLocaleDateString()}</span>
                           </div>
                         </Link>
-                        
                         <div className="flex items-center gap-2">
                           {post.user_id === user.id ? (
                             <form action={deletePost}>
@@ -218,7 +217,6 @@ export default async function Index(props: {
 
                       <ReactionButtons postId={post.id} awesomeCount={post.awesomeCount} hugCount={post.hugCount} initialMyReaction={post.myReaction} />
 
-                      {/* 返信一覧 */}
                       {replies.some(r => r.parent_id === post.id) && (
                         <div className="ml-8 mt-6 space-y-4 border-l-2 border-gray-100 pl-6 mb-6">
                           {replies.filter(r => r.parent_id === post.id).map(reply => (
@@ -231,8 +229,6 @@ export default async function Index(props: {
                           ))}
                         </div>
                       )}
-
-                      {/* 新しい返信フォームコンポーネント（parentIdを渡す） */}
                       <ReplyForm parentId={post.id} />
                     </div>
                   ))}
@@ -240,26 +236,17 @@ export default async function Index(props: {
               </Suspense>
             </div>
           ) : (
-            /* 未ログイン時の表示 */
             <div className="py-10 flex flex-col items-center justify-center">
               <div className="w-full bg-white rounded-[2.5rem] shadow-xl border border-gray-100 p-12 flex flex-col items-center justify-center text-center">
                 <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-300 shadow-inner">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 00(2.25 2.25z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                   </svg>
                 </div>
                 <div className="flex flex-col items-center mb-8 text-center">
-          {/* メインロゴ：ポジティブす */}
-          <h1 className="text-2xl font-black tracking-tighter text-green-700">
-            POSITIVES
-          </h1>
-          
-          {/* サブキャッチコピー */}
-          <p className="text-2xl
-         font-bold tracking-tight text-slate-900">
-            A sanctuary for your soul.
-          </p>
-        </div>
+                  <h1 className="text-2xl font-black tracking-tighter text-green-700">POSITIVES</h1>
+                  <p className="text-2xl font-bold tracking-tight text-slate-900">A sanctuary for your soul.</p>
+                </div>
                 <Link href="/login" className="bg-black text-white px-12 py-4 rounded-full font-bold shadow-lg hover:scale-105 transition-transform active:scale-95">
                   ログイン画面へ
                 </Link>
@@ -267,7 +254,7 @@ export default async function Index(props: {
             </div>
           )}
         </div>
-      </main>
-    </PullToRefresh>
-  )
+      </PullToRefresh>
+    </main>
+  );
 }
