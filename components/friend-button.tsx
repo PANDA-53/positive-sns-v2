@@ -16,10 +16,12 @@ export function FriendButton({ targetUserId, initialStatus }: Props) {
   const handleRequest = async () => {
     if (status === 'none') {
       setStatus('pending');
+      // 直接 string 型の ID を渡します
       await sendFriendRequest(targetUserId);
     } else if (status === 'pending' || status === 'accepted') {
       if (confirm('友達（または申請）を解除しますか？')) {
         setStatus('none');
+        // 直接 string 型の ID を渡します
         await deleteFriendship(targetUserId);
       }
     }

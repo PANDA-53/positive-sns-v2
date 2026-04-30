@@ -100,12 +100,14 @@ export async function createReply(formData: FormData) {
 }
 
 // --- フレンド・削除・エラー解消用アクション ---
-export async function deleteFriendship(formData: FormData) {
-  const friendId = formData.get('friendId') as string;
+
+// 引数を string に変更
+export async function deleteFriendship(targetUserId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase.from('friendships').delete().eq('user_id', user.id).eq('friend_id', friendId);
+  // friendId ではなく引数の targetUserId を直接使用
+  await supabase.from('friendships').delete().eq('user_id', user.id).eq('friend_id', targetUserId);
   revalidatePath('/');
 }
 
