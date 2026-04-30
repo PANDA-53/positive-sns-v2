@@ -7,8 +7,16 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Image from 'next/image'
 
+// --- 型エラー（赤線）を解消するための型定義 ---
+interface PostResult {
+  isToxic?: boolean;
+  reason?: string;
+  suggestions?: string[];
+  success?: boolean;
+}
+
 export default function PostForm() {
-  const [content, setContent] = useState('') // 状態管理を追加
+  const [content, setContent] = useState('')
   const [isCompressing, setIsCompressing] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const searchParams = useSearchParams()
@@ -22,6 +30,7 @@ export default function PostForm() {
   // URLから言い換え案をパース
   const suggestions: string[] = suggestionsRaw ? JSON.parse(suggestionsRaw) : []
 
+  // 警告トーストの表示制御
   useEffect(() => {
     if (isToxic) {
       if (!toastIdRef.current) {
@@ -46,11 +55,9 @@ export default function PostForm() {
           </div>
         ), { duration: Infinity })
       }
-    } else {
-      if (toastIdRef.current) {
-        toast.dismiss(toastIdRef.current)
-        toastIdRef.current = null
-      }
+    } else if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current)
+      toastIdRef.current = null
     }
   }, [isToxic, reason])
 
@@ -81,17 +88,39 @@ export default function PostForm() {
     try {
       const formData = new FormData(e.currentTarget)
       const imageFile = formData.get('image') as File
+      
       if (imageFile && imageFile.size > 1024 * 1024) {
         const options = { maxSizeMB: 0.9, maxWidthOrHeight: 1200, useWebWorker: true }
         const compressedFile = await imageCompression(imageFile, options)
         formData.set('image', compressedFile, compressedFile.name)
       }
-      await createPost(formData)
+
+      // 1. サーバーアクションの結果を変数に格納（型を指定）
+      const result = await createPost(formData) as PostResult
+
+      // 2. AIが不適切（Toxic）と判定した場合の処理
+      if (result && result.isToxic) {
+        const params = new URLSearchParams()
+        params.set('error', 'toxic-content')
+        params.set('reason', result.reason || '')
+        if (result.suggestions) {
+          params.set('suggestions', JSON.stringify(result.suggestions))
+        }
+        
+        router.replace(`/?${params.toString()}`)
+        setIsCompressing(false)
+        return // ここでリターンし、下の「投稿完了」メッセージを表示させない
+      }
+
+      // 3. 正常終了時の処理
       setContent('')
       setPreviewUrl(null)
       toast.success('投稿をシェアしました！')
+      router.replace('/') 
+
     } catch (error) {
       console.error('投稿エラー:', error)
+      toast.error('投稿に失敗しました。')
     } finally {
       setIsCompressing(false)
     }
@@ -99,7 +128,7 @@ export default function PostForm() {
 
   return (
     <div className="space-y-4">
-      {/* --- 言い換え提案エリア --- */}
+      {/* 言い換え提案エリア */}
       {isToxic && suggestions.length > 0 && (
         <div className="bg-gradient-to-br from-green-50 to-white border-2 border-green-100 p-6 rounded-[2.5rem] shadow-xl animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="flex items-center gap-2 mb-4">
@@ -124,7 +153,7 @@ export default function PostForm() {
         </div>
       )}
 
-      {/* --- 投稿フォーム --- */}
+      {/* 投稿フォーム */}
       <form id="post-form" onSubmit={handleSubmit} className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-gray-100 transition-all">
         <textarea 
           name="content" 
@@ -158,14 +187,14 @@ export default function PostForm() {
 
           <button 
             type="submit" 
-            disabled={isCompressing || isToxic}
+            disabled={isCompressing}
             className={`font-black text-xs py-4 px-10 rounded-full shadow-lg transition-all tracking-widest uppercase ${
               isToxic 
-                ? "bg-gray-100 text-gray-300 cursor-not-allowed" 
+                ? "bg-amber-500 text-white hover:bg-amber-600" 
                 : "bg-black text-white hover:bg-gray-800 active:scale-95 shadow-black/10"
             }`}
           >
-            {isCompressing ? "Sending..." : isToxic ? "Check Magic" : "Share Love"}
+            {isCompressing ? "Sending..." : isToxic ? "Rewrite" : "Share Love"}
           </button>
         </div>
       </form>
