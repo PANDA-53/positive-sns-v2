@@ -39,3 +39,22 @@ body {
   /* layout.tsxのクラスと合わせて、最小の高さを確保 */
   min-height: 100%;
 }
+/* Sonnerのトーストコンテナを無視して物理的に中央へ固定する */
+[data-sonner-toast] {
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  pointer-events: none !important;
+}
+
+.care-robot-portal {
+  position: fixed !important;
+  top: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 9999 !important;
+  width: fit-content !important;
+  pointer-events: auto !important;
+}
