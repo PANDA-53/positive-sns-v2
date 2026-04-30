@@ -1,237 +1,200 @@
-export const dynamic = 'force-dynamic';
+"use client"
 
-import { createClient } from '../utils/supabase/server'
-import { logout, acceptFriendRequest, deletePost } from './actions'
-import { Suspense } from 'react'
-import { ReactionButtons } from '../components/reaction-buttons'
-import { FriendButton } from '../components/friend-button'
-import PostForm from '../components/post-form'
-import ReplyForm from '../components/ReplyForm'
-import Link from 'next/link'
-import PullToRefresh from '../components/pull-to-refresh'
+import { useState, useEffect, useRef } from 'react'
+import { createPost } from '@/app/actions'
+import imageCompression from 'browser-image-compression'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import Image from 'next/image'
 
-const defaultAvatar = "https://www.gravatar.com/avatar/?d=mp"
-
-// --- 手順B: データ取得専用のコンポーネント ---
-async function PostListContent({ user }: { user: any }) {
-  const supabase = await createClient()
-  
-  // 並列取得で高速化
-  const [postsRes, friendshipsRes] = await Promise.all([
-    supabase.from('posts').select(`*, reactions (type, user_id)`).order('created_at', { ascending: false }),
-    supabase.from('friendships').select('*').or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-  ]);
-
-  const posts = postsRes.data || [];
-  const friendshipsRaw = friendshipsRes.data || [];
-
-  const postUserIds = posts.map(p => p.user_id);
-  const allFriendUserIds = friendshipsRaw.map(f => f.user_id === user.id ? f.friend_id : f.user_id);
-  const allRelevantUserIds = Array.from(new Set([...postUserIds, ...allFriendUserIds, user.id]));
-
-  const { data: allProfiles } = await supabase
-    .from('profiles')
-    .select('id, full_name, avatar_url')
-    .in('id', allRelevantUserIds);
-
-  const pendingRequests = friendshipsRaw
-    .filter(f => String(f.friend_id) === String(user.id) && f.status === 'pending')
-    .map(f => ({
-      user_id: f.user_id,
-      sender_profile: allProfiles?.find(p => p.id === f.user_id)
-    })).filter(req => req.sender_profile);
-
-  const uniqueFriendIds = new Set(
-    friendshipsRaw.filter(f => f.status === 'accepted').map(f => (String(f.user_id) === String(user.id) ? f.friend_id : f.user_id))
-  );
-  const acceptedFriends = Array.from(uniqueFriendIds).map(id => allProfiles?.find(p => id === p.id)).filter(Boolean);
-
-  const formattedPosts = posts.map(post => {
-    const reactions = post.reactions || [];
-    const authorProfile = allProfiles?.find(p => p.id === post.user_id);
-    const relation = friendshipsRaw.find(f => 
-      (String(f.user_id) === String(user.id) && String(f.friend_id) === String(post.user_id)) || 
-      (String(f.user_id) === String(post.user_id) && String(f.friend_id) === String(user.id))
-    );
-    
-    return {
-      ...post,
-      authorProfile,
-      awesomeCount: reactions.filter((r: any) => r.type === 'awesome').length,
-      hugCount: reactions.filter((r: any) => r.type === 'hug').length,
-      myReaction: reactions.find((r: any) => r.user_id === user.id)?.type || null,
-      friendStatus: post.user_id === user.id ? 'me' : (relation?.status || 'none')
-    };
-  });
-
-  const mainPosts = formattedPosts.filter(p => !p.parent_id);
-  const replies = formattedPosts.filter(p => p.parent_id);
-
-  return (
-    <div className="space-y-8">
-      {/* 友達一覧 */}
-      <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-2">Friends</h3>
-        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-          {acceptedFriends.length > 0 ? (
-            acceptedFriends.map((friend: any) => (
-              <Link key={friend.id} href={`/users/${friend.id}`} className="flex flex-col items-center gap-1 shrink-0 w-16 hover:opacity-80 transition-opacity">
-                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md">
-                  <img src={friend.avatar_url || defaultAvatar} className="w-full h-full object-cover" alt="" />
-                </div>
-                <span className="text-[10px] font-bold text-gray-600 truncate w-full text-center">{friend.full_name}</span>
-              </Link>
-            ))
-          ) : (
-            <p className="text-[10px] text-gray-400 px-2 italic">まだ友達がいません</p>
-          )}
-        </div>
-      </section>
-
-      {/* 申請リスト */}
-      {pendingRequests.length > 0 && (
-        <section className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 p-6 rounded-[2.5rem] shadow-lg">
-          <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 px-2">申請が届いています</h3>
-          <div className="space-y-3">
-            {pendingRequests.map((req: any) => (
-              <div key={req.user_id} className="flex items-center justify-between bg-white p-4 rounded-3xl border border-white shadow-sm">
-                <Link href={`/users/${req.user_id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                  <img src={req.sender_profile?.avatar_url || defaultAvatar} className="w-10 h-10 rounded-full object-cover" alt="" />
-                  <span className="font-bold text-sm text-gray-800">{req.sender_profile?.full_name}</span>
-                </Link>
-                <form action={acceptFriendRequest}>
-                  <input type="hidden" name="requesterId" value={req.user_id} />
-                  <button type="submit" className="text-xs bg-blue-600 text-white px-5 py-2 rounded-full font-bold shadow-md">承認</button>
-                </form>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* 投稿フォーム */}
-      <section><PostForm /></section>
-
-      {/* 投稿リスト */}
-      <div className="space-y-6 pb-20">
-        {mainPosts.map((post) => (
-          <div key={post.id} className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-7">
-            <div className="flex items-center justify-between mb-4">
-              <Link href={`/users/${post.user_id}`} className="flex items-center gap-3 hover:opacity-70 transition-opacity">
-                <img src={post.authorProfile?.avatar_url || defaultAvatar} className="w-10 h-10 rounded-full object-cover" alt="" />
-                <div className="flex flex-col text-black">
-                  <span className="text-sm font-bold">{post.authorProfile?.full_name || '匿名'}</span>
-                  <span className="text-[10px] text-gray-400">{new Date(post.created_at).toLocaleDateString()}</span>
-                </div>
-              </Link>
-              <div className="flex items-center gap-2">
-                {post.user_id === user.id ? (
-                  <form action={deletePost}>
-                    <input type="hidden" name="postId" value={post.id} />
-                    <button type="submit" className="text-gray-300 hover:text-red-500 transition-colors p-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-                    </button>
-                  </form>
-                ) : (
-                  <FriendButton targetUserId={post.user_id} initialStatus={post.friendStatus} />
-                )}
-              </div>
-            </div>
-            <p className="text-base text-gray-800 mb-4 whitespace-pre-wrap">{post.content}</p>
-            {post.image_url && (
-              <div className="mb-4 rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-gray-50">
-                <img src={post.image_url} alt="" className="w-full h-auto object-cover max-h-[450px]" />
-              </div>
-            )}
-            <ReactionButtons postId={post.id} awesomeCount={post.awesomeCount} hugCount={post.hugCount} initialMyReaction={post.myReaction} />
-            {replies.some(r => r.parent_id === post.id) && (
-              <div className="ml-8 mt-6 space-y-4 border-l-2 border-gray-100 pl-6 mb-6">
-                {replies.filter(r => r.parent_id === post.id).map(reply => (
-                  <div key={reply.id} className="bg-gray-50 p-3 rounded-2xl">
-                    <Link href={`/users/${reply.user_id}`} className="font-bold text-gray-600 block mb-1 text-xs hover:underline">{reply.authorProfile?.full_name || '匿名'}</Link>
-                    <span className="text-gray-700 text-sm">{reply.content}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <ReplyForm parentId={post.id} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+// 型エラー（赤線）を解消するための型定義
+interface PostResult {
+  isToxic?: boolean;
+  reason?: string;
+  suggestions?: string[];
+  success?: boolean;
 }
 
-// --- メインの Index コンポーネント ---
-export default async function Index() {
-  const supabase = await createClient()
-  const { data: userData } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
-  const user = userData?.user
+export default function PostForm() {
+  const [content, setContent] = useState('')
+  const [isCompressing, setIsCompressing] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const toastIdRef = useRef<string | number | null>(null)
 
-  // ヘッダー用に自分のプロフィールを軽量に取得
-  let currentUserProfile = null;
-  if (user) {
-    const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single();
-    currentUserProfile = data;
+  const isToxic = searchParams.get('error') === 'toxic-content'
+  const reason = searchParams.get('reason')
+  const suggestionsRaw = searchParams.get('suggestions')
+  
+  // URLから言い換え案をパース
+  const suggestions: string[] = suggestionsRaw ? JSON.parse(suggestionsRaw) : []
+
+  // 警告トーストの表示（スマホ対応版）
+  useEffect(() => {
+    if (isToxic) {
+      if (!toastIdRef.current) {
+        toastIdRef.current = toast.custom((t) => (
+          // w-[92vw] と max-w-md でスマホでもはみ出さないように調整
+          <div className="bg-white/95 backdrop-blur-md border border-gray-100 shadow-2xl rounded-[2rem] sm:rounded-full py-4 px-6 sm:px-8 flex items-start sm:items-center gap-4 w-[92vw] max-w-md mx-auto">
+            <div className="flex-shrink-0 mt-1 sm:mt-0">
+              <Image src="/care-robot.png" alt="Care Robot" width={48} height={48} className="object-contain" priority />
+            </div>
+            <div className="flex flex-col justify-center min-w-0 flex-1 pr-2">
+              {/* whitespace-nowrap を削除してスマホでの折り返しを許可 */}
+              <p className="text-[14px] sm:text-[16px] font-bold text-gray-800 leading-tight mb-1">
+                それを投稿したら貴方は笑顔になりますか？
+              </p>
+              <p className="text-[12px] text-gray-500 leading-snug">
+                {reason || "誰かが傷つく内容は、お伝えできません。"}
+              </p>
+            </div>
+            <button onClick={() => toast.dismiss(t)} className="flex-shrink-0 text-gray-400 hover:text-gray-600 p-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ), { duration: Infinity })
+      }
+    } else if (toastIdRef.current) {
+      toast.dismiss(toastIdRef.current)
+      toastIdRef.current = null
+    }
+  }, [isToxic, reason])
+
+  const handleSuggestionClick = (suggestedText: string) => {
+    setContent(suggestedText)
+    router.replace('/') // パラメータをクリア
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(URL.createObjectURL(file))
+    }
+  }
+
+  const handleCancel = () => {
+    setContent('')
+    setPreviewUrl(null)
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    router.push('/')
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsCompressing(true)
+    try {
+      const formData = new FormData(e.currentTarget)
+      const imageFile = formData.get('image') as File
+      
+      if (imageFile && imageFile.size > 1024 * 1024) {
+        const options = { maxSizeMB: 0.9, maxWidthOrHeight: 1200, useWebWorker: true }
+        const compressedFile = await imageCompression(imageFile, options)
+        formData.set('image', compressedFile, compressedFile.name)
+      }
+
+      // 判定結果を受け取る
+      const result = await createPost(formData) as PostResult
+
+      // AIが不適切（Toxic）と判定した場合は、URLを更新してトーストを表示させ、処理を抜ける
+      if (result && result.isToxic) {
+        const params = new URLSearchParams()
+        params.set('error', 'toxic-content')
+        params.set('reason', result.reason || '')
+        if (result.suggestions) {
+          params.set('suggestions', JSON.stringify(result.suggestions))
+        }
+        router.replace(`/?${params.toString()}`)
+        setIsCompressing(false)
+        return // 成功トーストを出さないようにここで終了
+      }
+
+      // 正常時のみ実行
+      setContent('')
+      setPreviewUrl(null)
+      toast.success('投稿をシェアしました！')
+      router.replace('/') 
+      
+    } catch (error) {
+      console.error('投稿エラー:', error)
+      toast.error('投稿に失敗しました。')
+    } finally {
+      setIsCompressing(false)
+    }
   }
 
   return (
-    <main className="min-h-screen bg-[#F2F2F2] text-black pb-12 font-sans">
-      <nav className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 h-16 flex justify-between items-center">
-          <h1 className="text-lg font-bold tracking-tight text-green-700">POSITIVES</h1>
-          <div className="flex items-center gap-3">
-            {user ? (
-              <>
-                {/* プロフィール画像から「自身のユーザーページ」へ飛ぶリンクを復活 */}
-                <Link href={`/users/${user.id}`} className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-gray-100 transition-colors">
-                  <img 
-                    src={currentUserProfile?.avatar_url || defaultAvatar} 
-                    className="w-8 h-8 rounded-full object-cover border border-gray-200 shadow-sm" 
-                    alt="My Avatar" 
-                  />
-                  <span className="text-xs font-bold text-gray-700 max-w-[100px] truncate hidden sm:block">
-                    {currentUserProfile?.full_name || 'ユーザー'}
-                  </span>
-                </Link>
-                {/* プロフィール編集ページへのリンク */}
-                <Link href="/profile" className="text-[10px] font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">
-                  設定
-                </Link>
-                {/* ログアウトボタンを復活 */}
-                <form action={logout}>
-                  <button className="text-[10px] bg-white border border-gray-200 text-gray-500 px-3 py-1.5 rounded-full font-bold hover:bg-gray-50">
-                    ログアウト
-                  </button>
-                </form>
-              </>
-            ) : (
-              <Link href="/login" className="text-xs bg-black text-white px-5 py-2 rounded-full font-bold">ログイン</Link>
-            )}
+    <div className="space-y-4">
+      {/* 言い換え提案エリア */}
+      {isToxic && suggestions.length > 0 && (
+        <div className="bg-gradient-to-br from-green-50 to-white border-2 border-green-100 p-6 rounded-[2.5rem] shadow-xl animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xl">🌟</span>
+            <p className="text-sm font-black text-green-800 uppercase tracking-wider">Positive Magic</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {suggestions.map((text, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleSuggestionClick(text)}
+                className="text-left text-[11px] font-bold bg-white hover:bg-green-50 border border-green-100 p-4 rounded-2xl transition-all active:scale-95 text-gray-700 leading-relaxed shadow-sm hover:shadow-md"
+              >
+                {text}
+              </button>
+            ))}
           </div>
         </div>
-      </nav>
+      )}
 
-      <PullToRefresh>
-        <div className="max-w-2xl mx-auto px-4 pt-6">
-          {user ? (
-            <Suspense fallback={
-              <div className="animate-pulse space-y-4 w-full max-w-md mx-auto mt-10">
-                <div className="h-48 bg-gray-200 rounded-[2.5rem]"></div>
-                <div className="h-12 bg-gray-200 rounded-2xl w-3/4"></div>
-                <div className="h-12 bg-gray-200 rounded-2xl"></div>
-              </div>
-            }>
-              <PostListContent user={user} />
-            </Suspense>
-          ) : (
-            <div className="text-center py-20">
-               <h2 className="text-xl font-bold mb-4">POSITIVESへようこそ</h2>
-               <Link href="/login" className="bg-green-600 text-white px-8 py-3 rounded-full font-bold">ログインする</Link>
-            </div>
-          )}
+      {/* 投稿フォーム */}
+      <form id="post-form" onSubmit={handleSubmit} className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-gray-100">
+        <textarea 
+          name="content" 
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="最近あった、いいことは？" 
+          className={`w-full p-6 rounded-3xl outline-none text-black border-none resize-none transition-all text-sm leading-relaxed ${
+            isToxic ? 'bg-amber-50/50 shadow-[0_0_0_2px_rgba(245,158,11,0.1)]' : 'bg-gray-50'
+          }`} 
+          rows={3} 
+          required 
+        />
+        
+        {previewUrl && (
+          <div className="relative mt-4 rounded-2xl overflow-hidden border border-gray-100">
+            <img src={previewUrl} alt="Preview" className="w-full h-auto" />
+            <button type="button" onClick={() => setPreviewUrl(null)} className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-8 h-8 flex items-center justify-center">✕</button>
+          </div>
+        )}
+
+        <div className="flex justify-between items-center mt-6">
+          <div className="flex items-center gap-4">
+            <label className="cursor-pointer p-3 bg-gray-50 hover:bg-gray-100 rounded-2xl transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-gray-500">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375 0 11-.75 0 .375.375 0 01.75 0z" />
+              </svg>
+              <input type="file" name="image" accept="image/*" className="hidden" onChange={handleImageChange} />
+            </label>
+            <button type="button" onClick={handleCancel} className="text-[10px] font-black text-gray-300 hover:text-gray-600 transition-colors uppercase tracking-widest">RESET</button>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={isCompressing}
+            className={`font-black text-xs py-4 px-10 rounded-full shadow-lg transition-all tracking-widest uppercase ${
+              isToxic 
+                ? "bg-amber-500 text-white hover:bg-amber-600" 
+                : "bg-black text-white hover:bg-gray-800 active:scale-95"
+            }`}
+          >
+            {isCompressing ? "Sending..." : isToxic ? "Rewrite" : "Share Love"}
+          </button>
         </div>
-      </PullToRefresh>
-    </main>
-  );
+      </form>
+    </div>
+  )
 }
