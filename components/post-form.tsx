@@ -16,10 +16,17 @@ interface PostResult {
   success?: boolean;
 }
 
-// 💡 修正：onSuccess がテキスト、メディアURL、動画フラグ、公開範囲を受け取れるように拡張
+// 💡 修正後：引数をオブジェクト型に完全統一
 interface PostFormProps {
   parentId?: number;
-  onSuccess?: (content: string, mediaUrl: string | null, isVideo: boolean, privacyLevel: "public" | "friends") => void;
+  onSuccess?: (newPostData: {
+    id: number;
+    content: string;
+    image_url: string | null;
+    video_url: string | null;
+    privacy_level: "public" | "friends";
+    created_at: string;
+  }) => void;
 }
 
 const GOLD_COLOR = "#B8860B";
@@ -85,18 +92,30 @@ export default function PostForm({ parentId, onSuccess }: PostFormProps) {
       }
 
       if (result.success) {
-        // 🛠️ 成功時のトーストを表示
         toast.success(isReply ? "返信しました！" : "投稿しました！");
 
-        // 💡 修正：AI判定を無事に通過したので、親コンポーネントに入力確定内容を即座に引き渡す
+        // 1. タイムラインへ0秒反映イベントを、必要な情報と一緒に発射
+        const newPostEvent = new CustomEvent("global-post-success", {
+          detail: {
+            id: Date.now(), // 一時的な仮のID
+            content: content,
+            image_url: !isVideo ? previewUrl : null,
+            video_url: isVideo ? previewUrl : null,
+            privacy_level: privacyLevel,
+            created_at: new Date().toISOString()
+          }
+        });
+        window.dispatchEvent(newPostEvent);
+
+        // 2. フォームの入力をリセット
+        handleReset();
+
+        // 💡 3. 【超重要】親（BottomNav）から渡されたモーダルを閉じる関数を安全に実行する！
         if (onSuccess) {
-          onSuccess(content, previewUrl, isVideo, privacyLevel);
+          (onSuccess as any)();
         }
 
-        // 引き渡しを終えてからフォームをリセット
-        handleReset();
-        
-        // 裏で静かにサーバーの最新状態と同期させる
+        // 4. 裏側で静かに最新状態と同期
         router.refresh();
       }
 

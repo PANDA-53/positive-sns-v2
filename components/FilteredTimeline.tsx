@@ -23,7 +23,7 @@ interface FilteredTimelineProps {
   mainPosts: any[];
   replies: any[];
   user: any;
-  profile?: any; // 💡 ログイン中のユーザープロフィールを親から受け取るために追加
+  profile?: any; 
   friendIds: string[];
   onSuccess?: (...args: any[]) => void; 
   viewModeProp?: 'all' | 'friends'; 
@@ -33,14 +33,14 @@ export default function FilteredTimeline({
   mainPosts = [], 
   replies = [], 
   user, 
-  profile, // 💡 Propsを展開
+  profile, 
   friendIds = [], 
   onSuccess, 
   viewModeProp = 'all'
 }: FilteredTimelineProps) {
-  // 💡 巻き戻された元のローカルState管理ロジック
   const [timelinePosts, setTimelinePosts] = useState<any[]>(Array.isArray(mainPosts) ? mainPosts : []);
   const [timelineReplies, setTimelineReplies] = useState<any[]>(Array.isArray(replies) ? replies : []);
+  const [isJustPosted, setIsJustPosted] = useState(false);
   
   const [activeCommentId, setActiveCommentId] = useState<number | null>(null);
   const [reportedPostIds, setReportedPostIds] = useState<Record<number, boolean>>({});
@@ -54,18 +54,24 @@ export default function FilteredTimeline({
 
   const router = useRouter();
 
-  // 親からのデータを同期する安全な副作用
+  // 親からのデータを同期
   useEffect(() => {
+    // 💡 投稿直後（0秒反映中）なら、親からの古いデータによる上書きを無視する！
+    if (isJustPosted) {
+      setIsJustPosted(false); // 次回のためにフラグを戻しておく
+      return;
+    }
+
     const safePosts = Array.isArray(mainPosts) ? mainPosts : [];
     setTimelinePosts([...safePosts]); 
     setHasMore(safePosts.length >= 20);
-  }, [mainPosts]); 
+  }, [mainPosts]);
 
   useEffect(() => {
     setTimelineReplies(Array.isArray(replies) ? replies : []);
   }, [replies]);
 
-  // リアルタイム監視（元のロジック通り）
+  // リアルタイム監視（削除検知など）
   useEffect(() => {
     const channel = supabase
       .channel('timeline-realtime-changes')
@@ -90,7 +96,7 @@ export default function FilteredTimeline({
     };
   }, [router]);
 
-  // スクロール監視
+  // 無限スクロールの監視（依存配列を件数に指定してクラッシュ防止）
   useEffect(() => {
     if (!hasMore || isLoadingMore) return;
 
@@ -108,7 +114,74 @@ export default function FilteredTimeline({
     }
 
     return () => observer.disconnect();
-  }, [timelinePosts, hasMore, isLoadingMore]);
+  }, [timelinePosts.length, hasMore, isLoadingMore]);
+
+  // 💡 常に最新の profile と user をロックせずに追従させるための Ref を用意
+  const latestProfileRef = useRef(profile);
+  const latestUserRef = useRef(user);
+
+  // レンダーのたびに、Ref の中身を最新状態に更新しておく
+  latestProfileRef.current = profile;
+  latestUserRef.current = user;
+
+  // 💡 0秒反映用のイベント監視 useEffect
+  useEffect(() => {
+    const handleGlobalPost = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const newPostData = customEvent.detail;
+
+      if (newPostData) {
+        // 親からの古いデータ上書きを防ぐフラグ展開
+        setIsJustPosted(true);
+
+        const currentProfile = latestProfileRef.current;
+        const currentUser = latestUserRef.current;
+
+        setTimelinePosts((current) => {
+          // 💡 画面上の既存の投稿から、自分の過去の正しいプロフィールを検索して奪い取る（最強の安全策）
+          const myExistingPost = current.find(p => p && p.user_id === currentUser?.id && p.authorProfile?.full_name);
+          const backupProfile = myExistingPost?.authorProfile;
+
+          const finalName = 
+            backupProfile?.full_name ||
+            currentProfile?.full_name || 
+            currentUser?.user_metadata?.full_name || 
+            currentUser?.email?.split('@')[0] || 
+            "マイユーザー";
+
+          const finalAvatar = 
+            backupProfile?.avatar_url ||
+            currentProfile?.avatar_url || 
+            currentUser?.user_metadata?.avatar_url || 
+            defaultAvatar;
+
+          const authorProfile = {
+            full_name: finalName,
+            avatar_url: finalAvatar,
+            total_awesome: backupProfile?.total_awesome || currentProfile?.total_awesome || 0,
+            total_hug: backupProfile?.total_hug || currentProfile?.total_hug || 0
+          };
+
+          const completeNewPost = {
+            ...newPostData,
+            user_id: currentUser?.id,
+            authorProfile,
+            awesomeCount: 0,
+            hugCount: 0,
+            myReaction: null
+          };
+
+          return [completeNewPost, ...current];
+        });
+      }
+    };
+
+    window.addEventListener("global-post-success", handleGlobalPost);
+    
+    return () => {
+      window.removeEventListener("global-post-success", handleGlobalPost);
+    };
+  }, []); // 依存配列が空でも、内部でRefを経由しているため常に最新のユーザー情報が引っ張れます
 
   const loadNextPosts = async () => {
     if (isLoadingMore || !hasMore) return;
@@ -204,7 +277,6 @@ export default function FilteredTimeline({
     }
   };
 
-  // 💡 修正点：親から渡された正確な `profile`（profilesテーブル）から自分の情報を適用
   const handleReplySuccess = (
     postId: number, 
     targetReply: { id: number; name: string } | null,
@@ -232,6 +304,22 @@ export default function FilteredTimeline({
     setTimelineReplies((current) => [...current, confirmedReply]);
     setActiveReplyTargets(prev => ({ ...prev, [postId]: null }));
     router.refresh();
+  };
+
+  // 💡 修正後：BottomNavの期待する型に完全一致させ、型エラーの赤波線を消滅させる
+  const handlePostFormSuccess = (newPostData?: {
+    id: number;
+    content: string;
+    image_url: string | null;
+    video_url: string | null;
+    privacy_level: "public" | "friends";
+    created_at: string;
+  }) => {
+    // タイムラインへの追加は上記の useEffect（グローバルイベント）側が
+    // 逆引きロジックを伴って完璧に行うため、ここでは二重追加を避けるためにコールバックの伝播のみを行います。
+    if (onSuccess && newPostData) {
+      onSuccess(newPostData);
+    }
   };
 
   return (
@@ -478,7 +566,7 @@ export default function FilteredTimeline({
       {user?.id && (
         <BottomNav 
           currentUserId={user.id} 
-          onPostSuccess={onSuccess} 
+          onPostSuccess={handlePostFormSuccess} 
         />
       )}
 
